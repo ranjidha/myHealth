@@ -81,21 +81,7 @@ snacks = st.sidebar.text_area("Snacks", value=prefill.get("snacks", ""), height=
 notes = st.sidebar.text_area("Notes", value=prefill.get("notes", ""), height=80)
 
 if st.sidebar.button("Save entry", type="primary"):
-    row = {
-        "date": selected_date,
-        "weight_lbs": safe_float(weight_lbs),
-        "surya_namaskar": safe_int(surya),
-        "water_glasses_8oz": safe_int(water),
-        "fasting_window_hours": safe_int(fasting),
-        "breakfast": breakfast.strip(),
-        "lunch": lunch.strip(),
-        "dinner": dinner.strip(),
-        "snacks": snacks.strip(),
-        "notes": notes.strip(),
-    }
-   if st.sidebar.button("Save entry", type="primary"):
-    st.warning("This version reads from Google Sheets (CSV). Saving back requires Google Sheets API (service account).")
-
+   st.warning("This version reads from Google Sheets (CSV). Saving back requires Google Sheets API (service account).")
 
 st.sidebar.divider()
 
