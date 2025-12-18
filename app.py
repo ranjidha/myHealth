@@ -7,40 +7,17 @@ import streamlit as st
 import matplotlib.pyplot as plt
 
 
-
-SHEET_CSV_URL = ("https://docs.google.com/spreadsheets/d/e/2PACX-1vT3o-k1EL_KIcflUTbZrW2DIGUgJXRhdtfvtyYQ5G4-G_HPmEm5tThVfZL5jVHJa7LtwCdbMs30hV2j/pub?output=csv")
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT3o-k1EL_KIcflUTbZrW2DIGUgJXRhdtfvtyYQ5G4-G_HPmEm5tThVfZL5jVHJa7LtwCdbMs30hV2j/pub?output=csv"
 
 @st.cache_data(ttl=300)
 def load_data_from_sheet():
     df = pd.read_csv(SHEET_CSV_URL)
-    df["date"] = pd.to_datetime(df["date"]).dt.date
+    df.columns = [c.strip() for c in df.columns]  # clean headers
+    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
+    df = df.dropna(subset=["date"])               # remove bad rows
     return df.sort_values("date")
-"""
- DATA_FILE = "data.csv"
-# -----------------------------
-# Helpers
-# -----------------------------
-COLUMNS = [
-    "date",
-    "weight_lbs",
-    "surya_namaskar",
-    "water_glasses_8oz",
-    "fasting_window_hours",
-    "breakfast",
-    "lunch",
-    "dinner",
-    "snacks",
-    "notes",
-]
 
-def load_data() -> pd.DataFrame:
-    if os.path.exists(DATA_FILE):
-        df = pd.read_csv(DATA_FILE)
-        # Ensure date parsing
-        df["date"] = pd.to_datetime(df["date"]).dt.date
-        return df.sort_values("date")
-    return pd.DataFrame(columns=COLUMNS)
-    """
+
 
 def save_data(df: pd.DataFrame):
     # store dates as ISO strings
@@ -75,7 +52,8 @@ st.set_page_config(page_title="Daily Health Log Dashboard", layout="wide")
 st.title("Daily Health Log Dashboard")
 st.caption("Log your daily meals + Surya Namaskar + water + weight, and track progress with charts.")
 
-df = load_data()
+df = load_data_from_sheet()
+
 
 # -----------------------------
 # Sidebar input form
