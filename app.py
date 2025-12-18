@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 
 
-SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/<PUBLISHED_ID>/pub?output=csv"
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT3o-k1EL_KIcflUTbZrW2DIGUgJXRhdtfvtyYQ5G4-G_HPmEm5tThVfZL5jVHJa7LtwCdbMs30hV2j/pub?output=csv"
 
 @st.cache_data(ttl=300)
 def load_data_from_sheet():
