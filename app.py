@@ -6,8 +6,17 @@ import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 
-DATA_FILE = "data.csv"
 
+
+SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/<PUBLISHED_ID>/pub?output=csv"
+
+@st.cache_data(ttl=300)
+def load_data_from_sheet():
+    df = pd.read_csv(SHEET_CSV_URL)
+    df["date"] = pd.to_datetime(df["date"]).dt.date
+    return df.sort_values("date")
+"""
+ DATA_FILE = "data.csv"
 # -----------------------------
 # Helpers
 # -----------------------------
@@ -31,6 +40,7 @@ def load_data() -> pd.DataFrame:
         df["date"] = pd.to_datetime(df["date"]).dt.date
         return df.sort_values("date")
     return pd.DataFrame(columns=COLUMNS)
+    """
 
 def save_data(df: pd.DataFrame):
     # store dates as ISO strings
