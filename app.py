@@ -1,103 +1,119 @@
-import os
-from datetime import date, datetime
+from datetime import date
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 import matplotlib.pyplot as plt
 
-
+# -----------------------------
+# Google Sheet (Published CSV)
+# -----------------------------
 SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vT3o-k1EL_KIcflUTbZrW2DIGUgJXRhdtfvtyYQ5G4-G_HPmEm5tThVfZL5jVHJa7LtwCdbMs30hV2j/pub?output=csv"
 
-@st.cache_data(ttl=300)
-def load_data_from_sheet():
-    df = pd.read_csv(SHEET_CSV_URL)
-    df.columns = [c.strip() for c in df.columns]  # clean headers
-    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
-    df = df.dropna(subset=["date"])               # remove bad rows
-    return df.sort_values("date")
+EXPECTED_COLUMNS = [
+    "date",
+    "weight_lbs",
+    "surya_namaskar",
+    "water_glasses_8oz",
+    "fasting_window_hours",
+    "breakfast",
+    "lunch",
+    "dinner",
+    "snacks",
+    "notes",
+]
 
-
-
-def save_data(df: pd.DataFrame):
-    # store dates as ISO strings
-    out = df.copy()
-    out["date"] = pd.to_datetime(out["date"]).dt.strftime("%Y-%m-%d")
-    out.to_csv(DATA_FILE, index=False)
-
-def upsert_row(df: pd.DataFrame, row: dict) -> pd.DataFrame:
-    # replace if date already exists
-    d = row["date"]
-    if len(df) > 0 and (df["date"] == d).any():
-        df = df[df["date"] != d]
-    df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
-    return df.sort_values("date")
-
-def safe_float(x):
-    try:
-        return float(x)
-    except:
-        return np.nan
-
-def safe_int(x):
-    try:
+def _to_int_safe(x, default=0) -> int:
+    """Convert x to int safely, returning default on NaN/blank/bad values."""
+    if x is None:
+        return default
+    if isinstance(x, (int, np.integer)):
         return int(x)
-    except:
+    try:
+        # Handle strings like "" or "  "
+        s = str(x).strip()
+        if s == "" or s.lower() == "nan":
+            return default
+        return int(float(s))  # handles "24.0"
+    except Exception:
+        return default
+
+def _to_float_safe(x) -> float:
+    """Convert x to float safely, returning NaN if invalid."""
+    try:
+        s = str(x).strip()
+        if s == "" or s.lower() == "nan":
+            return np.nan
+        return float(s)
+    except Exception:
         return np.nan
+
+@st.cache_data(ttl=300)
+def load_data_from_sheet() -> pd.DataFrame:
+    df = pd.read_csv(SHEET_CSV_URL)
+    df.columns = [c.strip() for c in df.columns]
+
+    # Ensure all expected columns exist (create empty if missing)
+    for col in EXPECTED_COLUMNS:
+        if col not in df.columns:
+            df[col] = ""
+
+    # Parse dates
+    df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
+    df = df.dropna(subset=["date"]).copy()
+
+    # Clean numeric columns (handle blanks/strings)
+    df["weight_lbs"] = df["weight_lbs"].apply(_to_float_safe)
+    df["surya_namaskar"] = df["surya_namaskar"].apply(_to_int_safe)
+    df["water_glasses_8oz"] = df["water_glasses_8oz"].apply(_to_int_safe)
+    df["fasting_window_hours"] = df["fasting_window_hours"].apply(_to_int_safe)
+
+    # Ensure text columns are strings
+    for col in ["breakfast", "lunch", "dinner", "snacks", "notes"]:
+        df[col] = df[col].fillna("").astype(str)
+
+    return df.sort_values("date")
 
 # -----------------------------
 # Page
 # -----------------------------
 st.set_page_config(page_title="Daily Health Log Dashboard", layout="wide")
 st.title("Daily Health Log Dashboard")
-st.caption("Log your daily meals + Surya Namaskar + water + weight, and track progress with charts.")
+st.caption("Read-only dashboard (data is fetched from Google Sheets CSV).")
 
 df = load_data_from_sheet()
 
-
 # -----------------------------
-# Sidebar input form
+# Sidebar (read-only)
 # -----------------------------
-st.sidebar.header("Add / Update Daily Log")
+st.sidebar.header("Daily Log (Read-only)")
 
 default_date = date.today()
 selected_date = st.sidebar.date_input("Date", value=default_date)
 
-# If there is an existing row for that date, prefill
 prefill = {}
 if len(df) > 0 and (df["date"] == selected_date).any():
     prefill = df[df["date"] == selected_date].iloc[0].to_dict()
 
 weight_lbs = st.sidebar.text_input("Weight (lbs)", value=str(prefill.get("weight_lbs", "")))
-surya = st.sidebar.number_input("Surya Namaskar (count)", min_value=0, max_value=500, value=int(prefill.get("surya_namaskar", 0) or 0))
-water = st.sidebar.number_input("Water (8oz glasses)", min_value=0, max_value=40, value=int(prefill.get("water_glasses_8oz", 0) or 0))
-fasting = st.sidebar.number_input("Fasting window (hours)", min_value=0, max_value=24, value=int(prefill.get("fasting_window_hours", 0) or 0))
+
+# ✅ FIX: safe conversion even if blank/NaN/string
+surya_default = _to_int_safe(prefill.get("surya_namaskar", 0), default=0)
+water_default = _to_int_safe(prefill.get("water_glasses_8oz", 0), default=0)
+fasting_default = _to_int_safe(prefill.get("fasting_window_hours", 0), default=0)
+
+surya = st.sidebar.number_input("Surya Namaskar (count)", min_value=0, max_value=500, value=surya_default)
+water = st.sidebar.number_input("Water (8oz glasses)", min_value=0, max_value=40, value=water_default)
+fasting = st.sidebar.number_input("Fasting window (hours)", min_value=0, max_value=24, value=fasting_default)
 
 st.sidebar.subheader("Meals (free text)")
-breakfast = st.sidebar.text_area("Breakfast", value=prefill.get("breakfast", ""), height=80)
-lunch = st.sidebar.text_area("Lunch", value=prefill.get("lunch", ""), height=80)
-dinner = st.sidebar.text_area("Dinner", value=prefill.get("dinner", ""), height=80)
-snacks = st.sidebar.text_area("Snacks", value=prefill.get("snacks", ""), height=80)
-notes = st.sidebar.text_area("Notes", value=prefill.get("notes", ""), height=80)
+st.sidebar.text_area("Breakfast", value=prefill.get("breakfast", ""), height=80, disabled=True)
+st.sidebar.text_area("Lunch", value=prefill.get("lunch", ""), height=80, disabled=True)
+st.sidebar.text_area("Dinner", value=prefill.get("dinner", ""), height=80, disabled=True)
+st.sidebar.text_area("Snacks", value=prefill.get("snacks", ""), height=80, disabled=True)
+st.sidebar.text_area("Notes", value=prefill.get("notes", ""), height=80, disabled=True)
 
-if st.sidebar.button("Save entry", type="primary"):
-    row = {
-        "date": selected_date,
-        "weight_lbs": safe_float(weight_lbs),
-        "surya_namaskar": safe_int(surya),
-        "water_glasses_8oz": safe_int(water),
-        "fasting_window_hours": safe_int(fasting),
-        "breakfast": breakfast.strip(),
-        "lunch": lunch.strip(),
-        "dinner": dinner.strip(),
-        "snacks": snacks.strip(),
-        "notes": notes.strip(),
-    }
-    df = upsert_row(df, row)
-    save_data(df)
-    st.sidebar.success(f"Saved for {selected_date} ✅")
-
-st.sidebar.divider()
+st.sidebar.info("Saving/editing from the app is disabled because CSV access is read-only. Update the Google Sheet directly.")
 
 # -----------------------------
 # Top metrics
@@ -106,7 +122,7 @@ left, mid, right, fourth = st.columns(4)
 
 if len(df) == 0:
     left.metric("Entries", "0")
-    st.info("Add your first entry from the sidebar to start seeing charts.")
+    st.info("No rows found in your Google Sheet (or it is not published as CSV).")
     st.stop()
 
 df_show = df.copy()
@@ -118,7 +134,7 @@ first = df_show.sort_values("date").iloc[0]
 
 left.metric("Entries logged", f"{entries}")
 
-# Weight delta (if weight exists)
+# Weight delta
 w_latest = latest["weight_lbs"]
 w_first = first["weight_lbs"]
 if pd.notna(w_latest) and pd.notna(w_first):
@@ -127,15 +143,8 @@ if pd.notna(w_latest) and pd.notna(w_first):
 else:
     mid.metric("Weight (latest)", "—", "Add weight to track")
 
-# Surya
-surya_latest = latest["surya_namaskar"]
-third_val = int(surya_latest) if pd.notna(surya_latest) else 0
-right.metric("Surya Namaskar (latest)", f"{third_val}")
-
-# Water
-water_latest = latest["water_glasses_8oz"]
-fourth_val = int(water_latest) if pd.notna(water_latest) else 0
-fourth.metric("Water (latest)", f"{fourth_val} glasses")
+right.metric("Surya Namaskar (latest)", f"{int(latest['surya_namaskar'])}")
+fourth.metric("Water (latest)", f"{int(latest['water_glasses_8oz'])} glasses")
 
 st.divider()
 
@@ -176,26 +185,17 @@ with c1:
 
 with c2:
     st.subheader("Surya Namaskar trend")
-    if df_f["surya_namaskar"].notna().sum() >= 1:
-        line_chart(df_f, "surya_namaskar", "Surya Namaskar (count) over time", "count")
-    else:
-        st.info("Add Surya Namaskar counts to see this chart.")
+    line_chart(df_f, "surya_namaskar", "Surya Namaskar (count) over time", "count")
 
 c3, c4 = st.columns(2)
 
 with c3:
     st.subheader("Water intake trend")
-    if df_f["water_glasses_8oz"].notna().sum() >= 1:
-        line_chart(df_f, "water_glasses_8oz", "Water (8oz glasses) over time", "glasses")
-    else:
-        st.info("Add water glasses to see this chart.")
+    line_chart(df_f, "water_glasses_8oz", "Water (8oz glasses) over time", "glasses")
 
 with c4:
     st.subheader("Fasting window trend")
-    if df_f["fasting_window_hours"].notna().sum() >= 1:
-        line_chart(df_f, "fasting_window_hours", "Fasting window (hours) over time", "hours")
-    else:
-        st.info("Add fasting window hours to see this chart.")
+    line_chart(df_f, "fasting_window_hours", "Fasting window (hours) over time", "hours")
 
 st.divider()
 
@@ -213,18 +213,3 @@ st.download_button(
     file_name="health_log_filtered.csv",
     mime="text/csv",
 )
-
-# -----------------------------
-# Delete entry (optional)
-# -----------------------------
-with st.expander("Delete an entry"):
-    del_date = st.date_input("Select date to delete", value=df_show["date"].max().date(), key="delete_date")
-    if st.button("Delete this date"):
-        before = len(df)
-        df2 = df[df["date"] != del_date].copy()
-        if len(df2) == before:
-            st.warning("No entry found for that date.")
-        else:
-            df = df2
-            save_data(df)
-            st.success(f"Deleted entry for {del_date}.")
