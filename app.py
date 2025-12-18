@@ -50,14 +50,6 @@ def safe_int(x):
 # -----------------------------
 st.set_page_config(page_title="Daily Health Log Dashboard", layout="wide")
 
-st.markdown(
-    """
-    <style>
-        [data-testid="stSidebar"] { display: none; }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
 
 
 st.title("Daily Health Log Dashboard")
