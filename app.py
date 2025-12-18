@@ -93,9 +93,9 @@ if st.sidebar.button("Save entry", type="primary"):
         "snacks": snacks.strip(),
         "notes": notes.strip(),
     }
-    df = upsert_row(df, row)
-    save_data(df)
-    st.sidebar.success(f"Saved for {selected_date} ✅")
+   if st.sidebar.button("Save entry", type="primary"):
+    st.warning("This version reads from Google Sheets (CSV). Saving back requires Google Sheets API (service account).")
+
 
 st.sidebar.divider()
 
